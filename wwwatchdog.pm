@@ -31,7 +31,7 @@ sub process {
     if ($targets{$base_url}{maintain_session}) {
       $ua->cookie_jar({});
     }
-    foreach my $uri (keys $targets{$base_url}{uris}) {
+    foreach my $uri (keys %{$targets{$base_url}{uris}}) {
       my ($html, $response_time, $resp);
       eval {
         alarm(($targets{$base_url}{uris}{$uri}{time_threshold} || 1) + 1);
@@ -59,7 +59,7 @@ sub process {
           $error .= "${base_url}$uri length is less than expected (".length($html)." < ".$targets{$base_url}{uris}{$uri}{length_threshold}.")\n";
         }
         if (!$error && ref($targets{$base_url}{uris}{$uri}{html_regexps}) eq 'HASH') {
-          foreach my $r_name (keys $targets{$base_url}{uris}{$uri}{html_regexps}) {
+          foreach my $r_name (keys %{$targets{$base_url}{uris}{$uri}{html_regexps}}) {
             my $r = $targets{$base_url}{uris}{$uri}{html_regexps}{$r_name};
             if ($html !~ m/$r/) {
               $error .= "${base_url}$uri doesn't match '$r_name' regexp\n"; 
