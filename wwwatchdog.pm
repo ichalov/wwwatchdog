@@ -44,10 +44,10 @@ sub process {
       };
       if ($@) {
         if ($@ =~ m!timeout!i) {
-          $error = "${base_url}$uri timed out\n";
+          $error .= "${base_url}$uri timed out\n";
         }
         else {
-          $error = "error getting ${base_url}$uri : $@\n";
+          $error .= "error getting ${base_url}$uri : $@\n";
         }
       }
       else {
