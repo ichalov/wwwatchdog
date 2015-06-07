@@ -11,12 +11,9 @@ use Time::HiRes;
 use POSIX;
 use File::Basename;
 
-
 sub process {
   my ($targets, $sendmail) = @_;
   my %targets = %$targets;
-
-  $SIG{ALRM} = sub { die "timeout" };
 
   my $log_time = strftime("%Y%m%d%H%M%S", localtime());
 
@@ -33,8 +30,23 @@ sub process {
     }
     foreach my $uri (keys %{$targets{$base_url}{uris}}) {
       my ($html, $response_time, $resp);
+
+      our $res_has_timedout = 0;
+      my $timeout_val = ($targets{$base_url}{uris}{$uri}{time_threshold} || 1) + 1;
+      use POSIX ':signal_h';
+      my $newaction = POSIX::SigAction->new(
+        sub { $res_has_timedout = 1; die "web request timeout"; },
+        POSIX::SigSet->new(SIGALRM)
+      );
+
+      my $oldaction = POSIX::SigAction->new();
+      if(!sigaction(SIGALRM, $newaction, $oldaction)) {
+        $error .= "Error setting SIGALRM handler: $!\n";
+      }
+
       eval {
-        alarm(($targets{$base_url}{uris}{$uri}{time_threshold} || 1) + 1);
+        $ua->timeout($timeout_val);
+        alarm($timeout_val);
         my $start = Time::HiRes::gettimeofday();
         $resp = $ua->get("${base_url}$uri");
         $html = $resp->decoded_content;
@@ -42,12 +54,17 @@ sub process {
         $response_time = $time - $start;
         alarm(0);
       };
-      if ($@) {
-        if ($@ =~ m!timeout!i) {
+      my $ua_exception = $@;
+      alarm(0);
+      if(!sigaction(SIGALRM, $oldaction )) {
+        $error .= "Error resetting SIGALRM handler: $!\n";
+      }
+      if ($ua_exception) {
+        if ($ua_exception =~ m!timeout!i) {
           $error .= "${base_url}$uri timed out\n";
         }
         else {
-          $error .= "error getting ${base_url}$uri : $@\n";
+          $error .= "error getting ${base_url}$uri : $ua_exception\n";
         }
       }
       else {
