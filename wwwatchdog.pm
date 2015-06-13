@@ -12,13 +12,14 @@ use POSIX;
 use File::Basename;
 
 sub process {
-  my ($targets, $sendmail) = @_;
+  my ($targets, $default_notifier) = @_;
   my %targets = %$targets;
 
   my $log_time = strftime("%Y%m%d%H%M%S", localtime());
 
   foreach my $base_url (keys %targets) {
     (my $domain = $base_url) =~ s!^\s*https?://!!;
+    my $notifier = (ref($targets{$base_url}{notifier}) eq 'CODE')?$targets{$base_url}{notifier}:$default_notifier;
     $domain =~ s!/+$!!;
     my $error = "";
     my $slow = 0;
@@ -94,11 +95,11 @@ sub process {
       open my $f, ">", dirname(__FILE__)."/error_flag_${domain}";
       print $f $log_time;
       close $f;
-      &$sendmail("$domain stopped functioning", $error);
+      &$notifier("$domain stopped functioning", $error);
     }
     if ($prev_error && !$error) {
       unlink(dirname(__FILE__)."/error_flag_${domain}");
-      &$sendmail("$domain restored functioning", "");
+      &$notifier("$domain restored functioning", "");
     }
 
     my $prev_slow = -f dirname(__FILE__)."/slow_flag_${domain}";
@@ -113,7 +114,7 @@ sub process {
     elsif ($slow && $prev_slow) {
       my $slowness_period_threshold = ($targets{$base_url}{slowness_period_threshold} // 5);
       if ((stat(dirname(__FILE__)."/slow_flag_${domain}"))[9] < timelocal(localtime()) - ($slowness_period_threshold * 60 - 5 )) {
-        &$sendmail("$domain works slow for $slowness_period_threshold consequtive minutes", "");
+        &$notifier("$domain works slow for $slowness_period_threshold consequtive minutes", "");
       }
     }
   }
