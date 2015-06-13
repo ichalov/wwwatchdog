@@ -12,7 +12,7 @@ use POSIX;
 use File::Basename;
 
 sub process {
-  my ($targets, $default_notifier) = @_;
+  my ($targets, $default_notifier, $get_ua) = @_;
   my %targets = %$targets;
 
   my $log_time = strftime("%Y%m%d%H%M%S", localtime());
@@ -23,7 +23,7 @@ sub process {
     $domain =~ s!/+$!!;
     my $error = "";
     my $slow = 0;
-    my $ua = new LWP::UserAgent;
+    my $ua = (ref($get_ua)?&$get_ua():(new LWP::UserAgent));
     $ua->agent("wwwatchdog/1.0");
     $ua->default_header('Accept-Encoding' => scalar HTTP::Message::decodable());
     if ($targets{$base_url}{maintain_session}) {
