@@ -11,6 +11,15 @@ use Time::HiRes;
 use POSIX;
 use File::Basename;
 
+sub init_ua {
+  my ($ua, $session_support) = @_;
+  $ua->agent("wwwatchdog/1.0");
+  $ua->default_header('Accept-Encoding' => scalar HTTP::Message::decodable());
+  if ($session_support) {
+    $ua->cookie_jar({});
+  }
+}
+
 sub process {
   my ($targets, $default_notifier, $get_ua) = @_;
   my %targets = %$targets;
@@ -23,12 +32,8 @@ sub process {
     $domain =~ s!/+$!!;
     my $error = "";
     my $slow = 0;
-    my $ua = (ref($get_ua)?&$get_ua():(new LWP::UserAgent));
-    $ua->agent("wwwatchdog/1.0");
-    $ua->default_header('Accept-Encoding' => scalar HTTP::Message::decodable());
-    if ($targets{$base_url}{maintain_session}) {
-      $ua->cookie_jar({});
-    }
+    my $ua = new LWP::UserAgent;
+    init_ua($ua, $targets{$base_url}{maintain_session});
     foreach my $uri (keys %{$targets{$base_url}{uris}}) {
       my ($html, $response_time, $resp);
 
@@ -46,6 +51,10 @@ sub process {
       }
 
       eval {
+        if (ref($get_ua) eq 'CODE') {
+          $ua = &$get_ua();
+          init_ua($ua, $targets{$base_url}{maintain_session});
+        }
         $ua->timeout($timeout_val);
         alarm($timeout_val);
         my $start = Time::HiRes::gettimeofday();
