@@ -1,4 +1,13 @@
-# Author: Victor Ichalov <ichalov@gmail.com>, 2015
+=head1 wwwatchdog.pm
+
+The library is intended to facilitate web site availability checks. It processes a list of base URLs and URIs to visit, reports problems detected (broken or slow pages). 
+
+It's supposed to be used in inversion of control environment, i.e. there's a controller script defining the lists to process and the notificaton routines, it then calls wwwatchdog::process subroutine to perform actions (URL checks and customer notifications) based on those lists. A sample of controller script can be seen in poll-sample.pl, test-suite.pl can be run to check wwwatchdog.pm proper functioning.
+
+The controller script is meant to be put in crontab with short interval (like run every 5 minutes). 
+
+=cut
+
 
 package wwwatchdog;
 
@@ -11,6 +20,22 @@ use Time::HiRes;
 use POSIX;
 use File::Basename;
 
+=head3 init_ua()
+
+The subroutine does additional initialization to a LWP::UserAgent object (it sets some default headers and creates a cookie jar if requested). It's used in a few places in the L</"process()"> function .
+
+Arguments:
+
+=over
+
+=item $ua - LWP::UserAgent or derivative object to perform the initialization on.
+
+=item $session_support (boolean) - whether to initialize cookie jar or not.
+
+=back
+
+=cut
+
 sub init_ua {
   my ($ua, $session_support) = @_;
   $ua->agent("wwwatchdog/1.0");
@@ -20,8 +45,26 @@ sub init_ua {
   }
 }
 
+=head3 process()
+
+The main function that performs actions as prescribed by controller script. 
+
+Arguments:
+
+=over
+
+=item $targets (hashref) - the list of URLs and URIs to process. It's stuctured as a nested tree and is of complex stucture. See poll-sample.pl for ideas on how to make it up for your needs.
+
+=item $default_notifier (sub ref) - a function taking two params (Subject and Message) and reporting them to the script customer (by sending an e-mail or other means). It's supposed to be defined in the controller script. It can be overridden on per-URL basis in $targets param.
+
+=item $custom_ua (Test::LWP::UserAgent object of sub ref, optional) - the script allows to override the UserAgent object for automated testing purposes.
+
+=back
+
+=cut
+
 sub process {
-  my ($targets, $default_notifier, $get_ua) = @_;
+  my ($targets, $default_notifier, $custom_ua) = @_;
   my %targets = %$targets;
 
   my $log_time = strftime("%Y%m%d%H%M%S", localtime());
@@ -32,7 +75,7 @@ sub process {
     $domain =~ s!/+$!!;
     my $error = "";
     my $slow = 0;
-    my $ua = new LWP::UserAgent;
+    my $ua = (ref($custom_ua) eq "Test::LWP::UserAgent")?$custom_ua:(new LWP::UserAgent);
     init_ua($ua, $targets{$base_url}{maintain_session});
     foreach my $uri (keys %{$targets{$base_url}{uris}}) {
       my ($html, $response_time, $resp);
@@ -51,8 +94,8 @@ sub process {
       }
 
       eval {
-        if (ref($get_ua) eq 'CODE') {
-          $ua = &$get_ua();
+        if (ref($custom_ua) eq 'CODE') {
+          $ua = &$custom_ua();
           init_ua($ua, $targets{$base_url}{maintain_session});
         }
         $ua->timeout($timeout_val);
@@ -131,3 +174,10 @@ sub process {
 
 
 1;
+
+=head2 author
+
+Victor Ichalov <ichalov@gmail.com>, 2015.
+
+=cut
+

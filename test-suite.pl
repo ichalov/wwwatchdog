@@ -7,6 +7,7 @@ use warnings;
 `rm -f ./slow_flag_*`;
 
 use Test::More;
+use Test::LWP::UserAgent;
 
 use_ok('wwwatchdog');
 
@@ -28,16 +29,10 @@ my $targets = {
   }
 };
 
-my $get_ua = sub {
-  use Test::LWP::UserAgent;
-  my $ua = new Test::LWP::UserAgent;
+my $ua = new Test::LWP::UserAgent;
+$ua->map_response('www.test', HTTP::Response->new('200', 'OK', ['Content-Type' => 'text/plain'], ''));
 
-  $ua->map_response('www.test', HTTP::Response->new('200', 'OK', ['Content-Type' => 'text/plain'], ''));
-
-  return $ua;
-};
-
-$msg = ""; wwwatchdog::process($targets, $ntf, $get_ua);
+$msg = ""; wwwatchdog::process($targets, $ntf, $ua);
 ok($msg eq '', "Base case scenario.");
 
 ### 
@@ -52,28 +47,17 @@ my $targets_length = {
   }
 };
 
-my $get_ua_length;
-{
-  my $cnt;
-  $get_ua_length = sub {
-    use Test::LWP::UserAgent;
+my $ua_length = new Test::LWP::UserAgent;
+$ua_length->map_response('www.test', HTTP::Response->new('200', 'OK', ['Content-Type' => 'text/plain'], ''));
 
-    my $ua = new Test::LWP::UserAgent;
-    if (++$cnt == 1) {
-      $ua->map_response('www.test', HTTP::Response->new('200', 'OK', ['Content-Type' => 'text/plain'], ''));
-    }
-    else {
-      $ua->map_response('www.test', HTTP::Response->new('200', 'OK', ['Content-Type' => 'text/plain'], 'X'x2048));
-    }
-
-    return $ua;
-  };
-}
-
-$msg = ""; wwwatchdog::process($targets_length, $ntf, $get_ua_length);
+$msg = ""; wwwatchdog::process($targets_length, $ntf, $ua_length);
 like($msg, qr{length is less than expected}, "Length threshold. Negative part.");
 
-$msg = ""; wwwatchdog::process($targets_length, $ntf, $get_ua_length);
+
+$ua_length = new Test::LWP::UserAgent;
+$ua_length->map_response('www.test', HTTP::Response->new('200', 'OK', ['Content-Type' => 'text/plain'], 'X'x2048));
+
+$msg = ""; wwwatchdog::process($targets_length, $ntf, $ua_length);
 like($msg, qr{restored functioning}, "Length threshold. Positive part.");
 
 ###
@@ -88,28 +72,17 @@ my $targets_status = {
   }
 };
 
-my $get_ua_status;
-{
-  my $cnt;
-  $get_ua_status = sub {
-    use Test::LWP::UserAgent;
+my $ua_status = new Test::LWP::UserAgent;
+$ua_status->map_response('www.test', HTTP::Response->new('200', 'OK', ['Content-Type' => 'text/plain'], ''));
 
-    my $ua = new Test::LWP::UserAgent;
-    if (++$cnt == 1) {
-      $ua->map_response('www.test', HTTP::Response->new('200', 'OK', ['Content-Type' => 'text/plain'], ''));
-    }
-    else {
-      $ua->map_response('www.test', HTTP::Response->new('404', 'Not Found', ['Content-Type' => 'text/plain'], ''));
-    }
-
-    return $ua;
-  };
-}
-
-$msg = ""; wwwatchdog::process($targets_status, $ntf, $get_ua_status);
+$msg = ""; wwwatchdog::process($targets_status, $ntf, $ua_status);
 like($msg, qr{status differs from expected}, "Page status check. Negative part.");
 
-$msg = ""; wwwatchdog::process($targets_status, $ntf, $get_ua_status);
+
+$ua_status = new Test::LWP::UserAgent;
+$ua->map_response('www.test', HTTP::Response->new('404', 'Not Found', ['Content-Type' => 'text/plain'], ''));
+
+$msg = ""; wwwatchdog::process($targets_status, $ntf, $ua_status);
 like($msg, qr{restored functioning}, "Page status check. Positive part.");
 
 
