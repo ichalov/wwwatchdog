@@ -135,4 +135,37 @@ like($msg, qr{restored functioning}, "Regexp test. Positive part.");
 
 ###
 
+my $targets_slow = {
+  'http://www.test' => {
+    'slowness_period_threshold' => 0,
+    'uris' => {
+      '/' => {
+        'time_threshold' => 1,
+      }
+    }
+  }
+};
+
+my $ua_slow = new Test::LWP::UserAgent;
+$ua_slow->map_response(sub {
+  sleep 1.5;
+  return 1;
+}, HTTP::Response->new('200'));
+
+$msg = ""; wwwatchdog::process($targets_slow, $ntf, $ua_slow);
+ok($msg eq '', "Slowness test. Pre-negative part.");
+
+sleep 1;
+
+$msg = ""; wwwatchdog::process($targets_slow, $ntf, $ua_slow);
+like($msg, qr{works slow}, "Slowness test. Negative part.");
+
+$ua = new Test::LWP::UserAgent;
+$ua->map_response('www.test', HTTP::Response->new('200', 'OK', ['Content-Type' => 'text/plain'], ''));
+
+$msg = ""; wwwatchdog::process($targets_slow, $ntf, $ua);
+ok($msg eq '', "Slowness test. Positive part.");
+
+###
+
 done_testing;
