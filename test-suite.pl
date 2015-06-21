@@ -88,4 +88,51 @@ like($msg, qr{restored functioning}, "Page status check. Positive part.");
 
 ###
 
+my $targets_complex = {
+  'http://www.test' => {
+    'uris' => {
+      '/' => {
+        'length_threshold' => 1024,
+        'html_regexps' => {
+          '1' => qr{XXXXX},
+        }
+      }
+    }
+  }
+};
+
+$ua_length = new Test::LWP::UserAgent;
+$ua_length->map_response('www.test', HTTP::Response->new('200', 'OK', ['Content-Type' => 'text/plain'], 'X'x512));
+
+$msg = ""; wwwatchdog::process($targets_complex, $ntf, $ua_length);
+like($msg, qr{length is less than expected}, "Complex test. First negative part.");
+
+$ua_length = new Test::LWP::UserAgent;
+$ua_length->map_response('www.test', HTTP::Response->new('200', 'OK', ['Content-Type' => 'text/plain'], 'Y'x2048));
+
+$msg = ""; wwwatchdog::process($targets_complex, $ntf, $ua_length);
+ok($msg eq '', "Complex test. Second negative part.");
+
+$ua_length = new Test::LWP::UserAgent;
+$ua_length->map_response('www.test', HTTP::Response->new('200', 'OK', ['Content-Type' => 'text/plain'], 'X'x2048));
+
+$msg = ""; wwwatchdog::process($targets_complex, $ntf, $ua_length);
+like($msg, qr{restored functioning}, "Complex test. Positive part.");
+
+###
+
+my $ua_regexp = new Test::LWP::UserAgent;
+$ua_regexp->map_response('www.test', HTTP::Response->new('200', 'OK', ['Content-Type' => 'text/plain'], 'Y'x2048));
+
+$msg = ""; wwwatchdog::process($targets_complex, $ntf, $ua_regexp);
+like($msg, qr{doesn't match .+ regexp}, "Regexp test. Negative part.");
+
+my $ua_regexp = new Test::LWP::UserAgent;
+$ua_regexp->map_response('www.test', HTTP::Response->new('200', 'OK', ['Content-Type' => 'text/plain'], 'X'x2048));
+
+$msg = ""; wwwatchdog::process($targets_complex, $ntf, $ua_regexp);
+like($msg, qr{restored functioning}, "Regexp test. Positive part.");
+
+###
+
 done_testing;
