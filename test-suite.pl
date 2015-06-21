@@ -127,7 +127,7 @@ $ua_regexp->map_response('www.test', HTTP::Response->new('200', 'OK', ['Content-
 $msg = ""; wwwatchdog::process($targets_complex, $ntf, $ua_regexp);
 like($msg, qr{doesn't match .+ regexp}, "Regexp test. Negative part.");
 
-my $ua_regexp = new Test::LWP::UserAgent;
+$ua_regexp = new Test::LWP::UserAgent;
 $ua_regexp->map_response('www.test', HTTP::Response->new('200', 'OK', ['Content-Type' => 'text/plain'], 'X'x2048));
 
 $msg = ""; wwwatchdog::process($targets_complex, $ntf, $ua_regexp);
