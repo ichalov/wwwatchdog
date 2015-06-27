@@ -1,0 +1,46 @@
+wwwatchdog.pm
+    The library is intended to facilitate web site availability checks. It
+    processes a list of base URLs and URIs to visit, reports problems
+    detected (broken or slow pages).
+
+    It's supposed to be used in inversion of control environment, i.e.
+    there's a controller script defining the lists to process and the
+    notificaton routines, it then calls wwwatchdog::process subroutine to
+    perform actions (URL checks and customer notifications) based on those
+    lists. A sample of controller script can be seen in poll-sample.pl,
+    test-suite.pl can be run to check wwwatchdog.pm proper functioning.
+
+    The controller script is meant to be put in crontab with short interval
+    (like run every 5 minutes).
+
+   init_ua()
+    The subroutine does additional initialization to a LWP::UserAgent object
+    (it sets some default headers and creates a cookie jar if requested).
+    It's used in a few places in the "process()" function .
+
+    Arguments:
+
+    $ua - LWP::UserAgent or derivative object to perform the initialization
+    on.
+    $session_support (boolean) - whether to initialize cookie jar or not.
+
+   process()
+    The main function that performs actions as prescribed by controller
+    script.
+
+    Arguments:
+
+    $targets (hashref) - the list of URLs and URIs to process. It's
+    stuctured as a nested tree and is of complex stucture. See
+    poll-sample.pl for ideas on how to make it up for your needs.
+    $default_notifier (sub ref) - a function taking two params (Subject and
+    Message) and reporting them to the script customer (by sending an e-mail
+    or other means). It's supposed to be defined in the controller script.
+    It can be overridden on per-URL basis in $targets param.
+    $custom_ua (Test::LWP::UserAgent object of sub ref, optional) - the
+    script allows to override the UserAgent object for automated testing
+    purposes.
+
+  author
+    Victor Ichalov <ichalov@gmail.com>, 2015.
+
