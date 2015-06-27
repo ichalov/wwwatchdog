@@ -80,66 +80,74 @@ sub process {
     foreach my $uri (keys %{$targets{$base_url}{uris}}) {
       my ($html, $response_time, $resp);
 
-      our $res_has_timedout = 0;
       my $timeout_val = ($targets{$base_url}{uris}{$uri}{time_threshold} || 1) + 1;
-      use POSIX ':signal_h';
-      my $newaction = POSIX::SigAction->new(
-        sub { $res_has_timedout = 1; die "web request timeout"; },
-        POSIX::SigSet->new(SIGALRM)
-      );
+      my $repeats = 0;
 
-      my $oldaction = POSIX::SigAction->new();
-      if(!sigaction(SIGALRM, $newaction, $oldaction)) {
-        $error .= "Error setting SIGALRM handler: $!\n";
-      }
+      my ($uri_error, $uri_slow) = ("", 0);
+      do {
+        ($uri_error, $uri_slow) = ("", 0);
+        our $res_has_timedout = 0;
+        use POSIX ':signal_h';
+        my $newaction = POSIX::SigAction->new(
+          sub { $res_has_timedout = 1; die "web request timeout"; },
+          POSIX::SigSet->new(SIGALRM)
+        );
 
-      eval {
-        if (ref($custom_ua) eq 'CODE') {
-          $ua = &$custom_ua();
-          init_ua($ua, $targets{$base_url}{maintain_session});
+        my $oldaction = POSIX::SigAction->new();
+        if(!sigaction(SIGALRM, $newaction, $oldaction)) {
+          $uri_error .= "Error setting SIGALRM handler: $!\n";
         }
-        $ua->timeout($timeout_val);
-        alarm($timeout_val);
-        my $start = Time::HiRes::gettimeofday();
-        $resp = $ua->get("${base_url}$uri");
-        $html = $resp->decoded_content;
-        my $time = Time::HiRes::gettimeofday();
-        $response_time = $time - $start;
+
+        eval {
+          if (ref($custom_ua) eq 'CODE') {
+            $ua = &$custom_ua();
+            init_ua($ua, $targets{$base_url}{maintain_session});
+          }
+          $ua->timeout($timeout_val);
+          alarm($timeout_val);
+          my $start = Time::HiRes::gettimeofday();
+          $resp = $ua->get("${base_url}$uri");
+          $html = $resp->decoded_content;
+          my $time = Time::HiRes::gettimeofday();
+          $response_time = $time - $start;
+          alarm(0);
+        };
+        my $ua_exception = $@;
         alarm(0);
-      };
-      my $ua_exception = $@;
-      alarm(0);
-      if(!sigaction(SIGALRM, $oldaction )) {
-        $error .= "Error resetting SIGALRM handler: $!\n";
-      }
-      if ($ua_exception) {
-        if ($ua_exception =~ m!timeout!i) {
-          $error .= "${base_url}$uri timed out\n";
+        if(!sigaction(SIGALRM, $oldaction )) {
+          $uri_error .= "Error resetting SIGALRM handler: $!\n";
         }
-        else {
-          $error .= "error getting ${base_url}$uri : $ua_exception\n";
-        }
-      }
-      else {
-        my $target_status = $targets{$base_url}{uris}{$uri}{target_status} || '200';
-        if ($resp->status_line !~ m!$target_status!) {
-          $error .= "${base_url}$uri status differs from expected ('".$resp->status_line."' vs. '$target_status')\n";
-        }
-        if ($targets{$base_url}{uris}{$uri}{length_threshold} && length($html) < $targets{$base_url}{uris}{$uri}{length_threshold}) {
-          $error .= "${base_url}$uri length is less than expected (".length($html)." < ".$targets{$base_url}{uris}{$uri}{length_threshold}.")\n";
-        }
-        if (!$error && ref($targets{$base_url}{uris}{$uri}{html_regexps}) eq 'HASH') {
-          foreach my $r_name (keys %{$targets{$base_url}{uris}{$uri}{html_regexps}}) {
-            my $r = $targets{$base_url}{uris}{$uri}{html_regexps}{$r_name};
-            if ($html !~ m/$r/) {
-              $error .= "${base_url}$uri doesn't match '$r_name' regexp\n"; 
-            }
+        if ($ua_exception) {
+          if ($ua_exception =~ m!timeout!i) {
+            $uri_error .= "${base_url}$uri timed out\n";
+          }
+          else {
+            $uri_error .= "error getting ${base_url}$uri : $ua_exception\n";
           }
         }
-        if ($response_time > ($targets{$base_url}{uris}{$uri}{time_threshold} || 1)) {
-          $slow = 1;
+        else {
+          my $target_status = $targets{$base_url}{uris}{$uri}{target_status} || '200';
+          if ($resp->status_line !~ m!$target_status!) {
+            $uri_error .= "${base_url}$uri status differs from expected ('".$resp->status_line."' vs. '$target_status')\n";
+          }
+          if ($targets{$base_url}{uris}{$uri}{length_threshold} && length($html) < $targets{$base_url}{uris}{$uri}{length_threshold}) {
+            $uri_error .= "${base_url}$uri length is less than expected (".length($html)." < ".$targets{$base_url}{uris}{$uri}{length_threshold}.")\n";
+          }
+          if (!$uri_error && ref($targets{$base_url}{uris}{$uri}{html_regexps}) eq 'HASH') {
+            foreach my $r_name (keys %{$targets{$base_url}{uris}{$uri}{html_regexps}}) {
+              my $r = $targets{$base_url}{uris}{$uri}{html_regexps}{$r_name};
+              if ($html !~ m/$r/) {
+                $uri_error .= "${base_url}$uri doesn't match '$r_name' regexp\n"; 
+              }
+            }
+          }
+          if ($response_time > ($targets{$base_url}{uris}{$uri}{time_threshold} || 1)) {
+            $uri_slow = 1;
+          }
         }
-      }
+      } until (!$targets{$base_url}{repeat_on_error} || !($uri_error || $uri_slow) || ++$repeats > 1 );
+      $error .= $uri_error;
+      $slow ||= $uri_slow;
     }
 
     my $prev_error = -f dirname(__FILE__)."/error_flag_${domain}";
