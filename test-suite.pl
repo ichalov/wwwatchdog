@@ -231,6 +231,7 @@ like($msg, qr{restored functioning}, "Repeat on error + length threshold. Positi
 
 $msg = ""; wwwatchdog::process($targets_roe, $ntf, $ua_slow);
 ok($msg eq '', "Repeat on error + slowness test. Pre-negative part.");
+ok(-f "slow_flag_www.test", "Repeat on error + slowness test. Pre-negative part, slow flag file exists.");
 
 sleep 1;
 
