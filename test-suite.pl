@@ -201,7 +201,7 @@ my $targets_roe_length = {
   }
 };
 
-my $ua_length = new Test::LWP::UserAgent;
+$ua_length = new Test::LWP::UserAgent;
 $ua_length->map_response('www.test', HTTP::Response->new('200', 'OK', ['Content-Type' => 'text/plain'], ''));
 
 $msg = ""; wwwatchdog::process($targets_roe_length, $ntf, $ua_length);
