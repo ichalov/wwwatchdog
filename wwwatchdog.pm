@@ -137,7 +137,7 @@ sub process {
             foreach my $r_name (keys %{$targets{$base_url}{uris}{$uri}{html_regexps}}) {
               my $r = $targets{$base_url}{uris}{$uri}{html_regexps}{$r_name};
               if ($html !~ m/$r/) {
-                $uri_error .= "${base_url}$uri doesn't match '$r_name' regexp\n"; 
+                $uri_error .= "${base_url}$uri doesn't match '$r_name' regexp\n";
               }
             }
           }
@@ -171,7 +171,7 @@ sub process {
       print $f $log_time;
       close $f;
     }
-    elsif ($slow && $prev_slow) {
+    elsif (!$error && $slow && $prev_slow) {
       my $slowness_period_threshold = ($targets{$base_url}{slowness_period_threshold} // 5);
       if ((stat(dirname(__FILE__)."/slow_flag_${domain}"))[9] < timelocal(localtime()) - ($slowness_period_threshold * 60 - 5 )) {
         &$notifier("$domain works slow for $slowness_period_threshold consequtive minutes", "");
